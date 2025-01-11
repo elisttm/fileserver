@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>register</h1>
+
+    <p class="red">
+        RULES FOR REGISTRATION:
+        <br>1 account per person
+        <br>dont use a password youd be sad to lose... preferably use a randomizer or pin
+        <br>do not poke at my security... and try not to abuse my bandwidth/resources
+    </p><br>
+
+    <form method="POST">
+        
+        <label for="username">username:</label>
+        <input type="text" name="username" maxlength="16" required><br><br>
+        
+        <label for="password">password:</label>
+        <input type="password" name="password" maxlength="100" required><br><br><br>
+        
+    <p class="red">a single-use registration key is required to create an account! if you dont have one, ask eli!</p>
+
+        <label for="key">registration key:</label>
+        <input type="text" name="key" maxlength="16" required><br><br>
+        
+        <br><input type="submit" value="register">
+    </form>
+{% endblock %}

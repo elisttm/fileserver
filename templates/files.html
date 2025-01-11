@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+    {%- set zw_folder = "&ZeroWidthSpace;/".join(folder.split("/")) %}
+    <h1>files in /{{user}}{% if folder %}/{{ zw_folder|safe }}{% endif %}:</h1>
+    {% if manage %}<form method="POST" id="settings">{% endif %}
+        
+    {%- if not filelist %}<p>folder is empty!</p><br>{%- else %}
+    <table border="0">
+        <tr>
+            <th class="icon"></th>
+            <th class="file">FILE</th>
+            <th class="date">DATE (EST)</th>
+            <th class="size">SIZE</th>
+        </tr>
+        {%- for file in filelist %}
+        <tr>
+            <td class="icon">
+                {%- if manage and filelist[file]["type"] != "back" %}<input type="checkbox" name="select" value="{{file}}">
+                {%- else %}<img src="/static/img/{{filelist[file]["type"]}}.gif" width="20" height="22"/>{% endif %}
+            </td>
+            <td class="file">
+            {%- if manage and filelist[file]["type"] != "back" %}
+                <input type="text" name="RENAME-{{file}}" maxlength="50" size="50" value="{{file}}">
+            {%- else %}
+                {%- if filelist[file]["type"] == "back" %}
+                <a href="/u/{{ ff.parent_path(user+"/"+folder) }}">../{{file}}</a>
+                {%- elif filelist[file]["type"] == "folder" %}
+                <a href="/u/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}">{{file}}</a>
+                {%- elif filelist[file]["type"] == "website" %}
+                <a href="{% if "://" not in filelist[file]["link"] %}https://{% endif %}{{filelist[file]["link"]}}">{{filelist[file]["name"]}}</a>
+                {%- elif filelist[file]["type"] == "link" %}
+                -> <a href="/f/{{filelist[file]["link"]}}">{{filelist[file]["name"]}}</a>
+                {%- elif filelist[file]["type"] == "linkfolder" %}
+                -> <a href="/u/{{filelist[file]["link"]}}">{{filelist[file]["name"]}}</a>
+                {%- else %}
+                <a href="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}">{{file}}</a>{%endif%}
+                {%- if filelist[file]["type"] == "image" %}
+                <div class="preview"><img loading="lazy" src="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}" height="150"/></div>{% endif %}
+                {%- endif %}
+            </td>
+            <td class="date">{{filelist[file]["date"] if "date" in filelist[file] else "--"}}</td>
+            <td class="size">{{ff.byte_size(filelist[file]["size"]) if "size" in filelist[file] else "--"}}</td>
+        </tr>
+        {%- endfor%}
+    </table><br>
+    {%- endif %}
+    
+    <p>
+        {%- if manage %}
+            <a href="/u/{{user}}{%if folder%}/{{folder}}{%endif%}">stop managing files</a> |
+        {%- elif user == current_user.auth_id  %}<a href="?manage">manage files</a> | {% endif %}
+            showing {{filelist|length}} file{% if filelist|length > 1 %}s{% endif %}
+            {% if userdata %} | {{ff.byte_size(userdata["size"])}} / {{ff.byte_size(userdata["storage"])}}{% endif %}
+    </p>
+
+    {%- if manage %}
+        <p class="red">you are in file management mode! ALL ACTIONS ARE PERMANENT!</p>
+        
+        <input type="submit" name="RENAME" value="apply renamed files">
+        <br><input type="submit" name="NEWFOLDER" value="create new folder">
+        <br><input type="submit" name="DELETE" value="delete selected files">
+        <br><input type="submit" name="MOVE" value="move selected files to...">
+        <select name="moveto">
+            {% for folder in filelist %}
+            {%- if filelist[folder]["type"] == "back" %}<option value="..">../{{folder}}</option>
+            {%- elif filelist[folder]["type"] == "folder" %}<option value="{{ folder }}">/{{folder}}</option>
+            {%- endif %}{%- endfor %}
+        </select>
+        
+    </form>
+    {%- endif %}
+    <br>
+    {%- if user == current_user.auth_id  %}
+        <form method="POST" enctype="multipart/form-data" action="/upload{% if folder %}?folder={{folder}}{%endif%}">
+            <input type="file" name="upload" multiple required>
+            
+            <p class="red">
+                NEVER upload anything sensitive or private to this server!
+                <br>ALL files are publically accessible to anyone with the URL
+                <br><br>
+                filenames: 32 characters max, letters and numbers only
+                <br>64mb max per upload (includes sum of selected files)
+            </p>
+            <input type="submit" value="submit file(s)">
+        </form>
+    {%- endif %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>registration keys</h1>
+
+    <form method="POST" id="keygen">
+        <div class="columnlist">
+        {%- for key in keylist %}
+            <span><label><input type="checkbox" name="keyselect" value="{{key}}"> {{key}}</label></span>
+        {%- endfor %}
+        </div>
+
+        <br><input type="submit" name="NEWKEY" value="create a new key">
+        <br><input type="submit" name="DELKEY" value="delete selected key(s)">
+    </form>
+
+    <br><hr><br>
+
+    <h1>list of existing directories</h1>
+
+    <div class="columnlist">
+    {%- for dir in dirlist %}
+        <span><a href="/u/{{dir}}">{{ dir }}</a></span>
+    {%- endfor%}
+    </div>
+        
+    <br><br><hr><br>
+
+    <h1>logs</h1>
+    <div style="overflow:scroll;width:100%;height:400px;text-align:left">
+    {% for line in logs %}
+        {{ line }}<br>
+    {% endfor %}
+    </div>
+{% endblock %}

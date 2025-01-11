@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>{{ errors[error.code][0] }}</h1>
+
+    <br><p class="red">{{ errors[error.code][1] }}<p>
+
+    <br><p class="center">confused? you may find an answer in the <a href="/f/public/changelog.txt">changelog</a>...</p>
+{% endblock %}

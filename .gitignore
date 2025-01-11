@@ -1,0 +1,17 @@
+**/__pycache__/
+.env
+.notes
+
+**.sh
+**.db
+**.journal
+
+log.txt
+uploads/*
+
+# include specific public files
+uploads/public/*
+!uploads/public/
+!uploads/public/README.txt
+!uploads/public/changelog.txt
+!uploads/public/LINKTO**

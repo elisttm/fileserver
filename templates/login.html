@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>login</h1>
+    
+    <span class="center">
+    <form method="POST">
+        <label>username: <input type="text" name="username" maxlength="16" required></label><br><br>
+        <label>password: <input type="password" name="password" maxlength="100" required></label><br><br>
+
+        <br><label><input type="checkbox" name="rememberme" value="rememberme"> remember me!</label>
+        
+        <br><br><input type="submit" value="login">
+    </form>
+    <br>
+    <p>
+        dont have an account?
+        <br><a href="/register">register here</a>
+    </p>
+    </span>
+{% endblock %}

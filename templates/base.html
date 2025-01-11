@@ -1,0 +1,17 @@
+<html lang="en-US">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="/static/style.css?9" type="text/css" />
+	<meta name="darkreader-lock">
+	<title>eli fileserver</title>
+<body>
+<nav>
+	{% if current_user.is_authenticated %}<a href="/u/{{ current_user.auth_id }}">/{{ current_user.auth_id }}</a> <a href="/settings">settings</a> <a href="/logout">logout</a>
+	{%- else %}<a href="/login">login</a> <a href="/register">register</a>{% endif %}
+</nav>
+{% with messages = get_flashed_messages() %}{% if messages %}<div class="flash">{% for message in messages %}{{ message }}<br>{% endfor %}</div>{% endif %}{% endwith %}
+<hr>
+    {% block content %}{% endblock %}
+</body>
+</html>

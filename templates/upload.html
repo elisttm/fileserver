@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>upload</h1>
+    
+    <p class="red">
+        NEVER upload anything sensitive or private to this server!
+        <br>ALL files are publically accessible if you have the url
+    <br>
+        <br>- filenames above 32 characters will be truncated
+        <br>- only letters and numbers allowed in filenames
+        <br>- the max size per upload (sum of all files) is 64mb
+    </p><br>
+
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="upload" multiple required>
+        <br><br><input type="submit" value="upload file(s)">
+    </form>
+
+    <br><p class="red">
+        tip: you can upload straight from your personal directory!
+    </p>
+{% endblock %}
