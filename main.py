@@ -5,12 +5,11 @@ from werkzeug.utils import secure_filename
 
 dotenv.load_dotenv()
 
-appdir = os.path.dirname(os.path.realpath(__file__))+"/"
-uploads = appdir+"uploads"
+appdir = os.path.dirname(os.path.realpath(__file__))
+uploads = appdir+"/uploads"
 
-db = sqlite3.connect(f"{appdir}data.db")
+db = sqlite3.connect(f"{appdir}/data.db")
 cur = db.cursor()
-
 cur.execute("CREATE TABLE IF NOT EXISTS users (name VARCHAR(16) NOT NULL UNIQUE, pass VARCHAR(255) NOT NULL)")
 cur.execute("CREATE TABLE IF NOT EXISTS keys (key VARCHAR(16) NOT NULL UNIQUE)")
 
@@ -24,7 +23,7 @@ app.secret_key = os.environ["secret"]
 QuartAuth(app)
 
 user_admins = ("eli")
-user_blacklist = ("user", "admin", "upload", "uploads", "download", "downloads")
+user_blacklist = ("user", "admin", "upload", "uploads", "download", "downloads") # probably not necessary anymore
 
 abc123_regex = re.compile("([A-Za-z1-9])")
 url_regex = re.compile("^(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")
@@ -102,7 +101,7 @@ def get_filelist(path):
 	up_files = {}
 	low_files = {}
 	split_path = path.split("/")
-	#user = split_path[split_path.index("uploads")+1]
+	#user = split_path[split_path.index("uploads")+1] # i MIGHT need this in the future
 	parent = {split_path[-2]: {"type": "back",}} if split_path[-2] != "uploads" else {} # parent directory
 	for file in os.listdir(path):
 		filepath = f"{path}/{file}"
@@ -113,7 +112,7 @@ def get_filelist(path):
 					"type": "folder",
 					"size": ff.dir_size(filepath),
 				}
-			elif file.startswith("LINKTO"): # special link files, can link to urls or other public files/folders
+			elif file.startswith("LINKTO"): # special linkto files
 				with open(filepath, 'r') as linkfile:
 					lf = (linkfile.readlines())
 					lflink = lf[0].strip() if (len(lf) >= 1 and lf[0].strip()) else None
@@ -189,17 +188,17 @@ def generate_key():
 async def log(request, txt):
 	# for logging significant actions (mainly signups and uploads)
 	# this method of parsing ips is really idiotic but i dont care
-	if "CF-CONNECTING-IP" in request.headers: # cloudflare proxy
-		ip = request.headers["CF-CONNECTING-IP"]
-	elif "X-FORWARDED-FOR" in request.headers: # non-standard proxy
-		ip = request.headers["X-FORWARDED-FOR"]
-	elif "HTTP_X_REAL_IP" in request.headers: # nginx
-		ip = request.headers["HTTP_X_REAL_IP"]
-	else: # no proxy
-		ip = request.headers["REMOTE-ADDR"]
+	if "CF-CONNECTING-IP" in request.headers:
+		ip = request.headers["CF-CONNECTING-IP"] # cloudflare proxy
+	elif "X-FORWARDED-FOR" in request.headers:
+		ip = request.headers["X-FORWARDED-FOR"] # other proxies
+	elif "HTTP_X_REAL_IP" in request.headers:
+		ip = request.headers["HTTP_X_REAL_IP"] # nginx
+	else:
+		ip = request.headers["REMOTE-ADDR"] # no proxy
 	log_msg = f"[{time.strftime('%X %x %Z')}] [{ip}] {txt}"
 	print(log_msg)
-	with open(f"{appdir}log.txt", "a") as logfile:
+	with open(f"{appdir}/log.txt", "a") as logfile:
 		logfile.write(log_msg+"\n")
 
 
@@ -227,6 +226,8 @@ async def _files(user, folder):
 
 		if "RENAME" in form:
 			for file in filelist:
+				if filelist[file]["type"] == "back":
+					continue
 				formid = f"RENAME-{file}"
 				if not form[formid] or form[formid] == "" or form[formid] == file:
 					continue
@@ -249,7 +250,7 @@ async def _files(user, folder):
 
 		elif selections and "DELETE" in form:
 			for file in selections:
-				if not file or file not in filelist:
+				if not file or file not in filelist or filelist[file]["type"] == "back":
 					selections.remove(file)
 					continue
 				if filelist[file]["type"] == "folder":
@@ -267,6 +268,8 @@ async def _files(user, folder):
 			movedir = ff.parent_path(fulldir) if folder == ".." else f"{fulldir}/{folder}"
 			folder_filelist = get_filelist(movedir)
 			for file in selections:
+				if not file or file not in filelist or filelist[file]["type"] == "back":
+					continue
 				if file in folder_filelist:
 					await flash(f"{file} already exists in {folder}!")
 					continue
@@ -475,13 +478,12 @@ async def _admin():
 
 		return redirect(request.url)
 
-	with open(f"{appdir}log.txt", "r") as log:
+	with open(f"{appdir}/log.txt", "r") as log:
 		logs = log.readlines()
 	return await render_template("admin.html", dirlist=sorted(os.listdir(uploads)), keylist=keylist, logs=logs)
 
 
 @app.route("/f/<user>/<path:filepath>")
-#@app.route("/uploads/<user>/<path:filepath>") # legacy
 async def _serve_files(user, filepath):
 	fullpath = f"{uploads}/{user}/{filepath}"
 	if os.path.isdir(fullpath):
@@ -506,10 +508,10 @@ async def static_from_root():
 async def error_handler(error):
 	response = quart.Response(await render_template("error.html", errors={
 		400: ["bad request received!", "the server could not understand the given request... either you did something wrong or you should try again later!"],
-		401: ["you are not logged in!", "you must be logged in to perform this action. please use the above link to do so or register if you must."],
+		401: ["you are not logged in!", "you must be logged in to perform this action!"],
 		403: ["access blocked!", "you are not allowed to view this page!"],
 		404: ["page not found", "the page you requested could not be found! if you believe this is in error, please get in contact"],
-		413: ["content too large!", "the content provided is too large for the server to handle! the max size for files is 64 MB per request..."],
+		413: ["content too large!", "the content provided is too large for the server to handle! the max size per upload is 64 MB..."],
 		500: ["an internal error occured!", "your request could not be processed. please get in contact if this persists!",],
 	}, error=error,), error.code)
 	return response
