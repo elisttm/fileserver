@@ -2,7 +2,7 @@
 {% block content %}
     <h1>registration keys</h1>
 
-    <form method="POST" id="keygen">
+    <form method="POST">
         <div class="columnlist">
         {%- for key in keylist %}
             <span><label><input type="checkbox" name="keyselect" value="{{key}}"> {{key}}</label></span>

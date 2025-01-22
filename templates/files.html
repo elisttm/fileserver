@@ -2,7 +2,7 @@
 {% block content %}
     {%- set zw_folder = "&ZeroWidthSpace;/".join(folder.split("/")) %}
     <h1>files in /{{user}}{% if folder %}/{{ zw_folder|safe }}{% endif %}:</h1>
-    {% if manage %}<form method="POST" id="settings">{% endif %}
+    {% if manage %}<form method="POST">{% endif %}
         
     {%- if not filelist %}<p>folder is empty!</p><br>{%- else %}
     <table border="0">

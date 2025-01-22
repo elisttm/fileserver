@@ -10,7 +10,7 @@ h1 {margin: 32px 0; text-align: center;}
 p {margin: 24px 0;}
 li {margin-bottom: 8px; text-align: left;}
 img {max-height: 100vh; max-width: 100vw; vertical-align: middle;}
-input, select, textarea, button {color: #000; vertical-align: middle;}
+input, select, textarea, button {color: #000; vertical-align: middle; resize: none;}
 input[type=file] {color: #fff; background-color: #000; outline: 1px solid #fff;}
 input[type=submit] {margin: 8px 0px}
 option {color: #000;}

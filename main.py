@@ -17,13 +17,13 @@ app = quart.Quart(__name__)
 app.config["UPLOAD_FOLDER"] = uploads
 app.config["SESSION_PERMANENT"] = True
 app.config["MAX_CONTENT_LENGTH"] = 1024*1024*256 # 256mb (just in case the in-place checks fail)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 60*60*12 # 12hr
 app.config["QUART_AUTH_COOKIE_NAME"] = 'AUTH'
 app.config["QUART_AUTH_COOKIE_SECURE"] = False
 app.secret_key = os.environ["secret"]
 QuartAuth(app)
 
 user_admins = ("eli")
-user_blacklist = ("user", "admin", "upload", "uploads", "download", "downloads") # probably not necessary anymore
 
 abc123_regex = re.compile("([A-Za-z1-9])")
 url_regex = re.compile("^(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")
@@ -33,12 +33,12 @@ ext_regex = {
 	"image1":	"svg|ico|cur|psd?|pdn|swf|art|dxf|dng|vtf",
 	"sound":	"aac|mp3|m.?a|ogg|flac|wav|amr|aiff|mid",
 	"video":	"mp4|webm|m.?v|mov|avi|wmv|mpg|flv|3gp",
-	"layout":	"rtf|e?pub|pdf|doc.?|pptx?|xlsx?|od(s|t|p)|eot|dcm|html?|md",
-	"archive":	"t?.?z.{0,2}|br|rpm|cab|deb|.?ar|n(es|64|ds|ro)|wad|pak|vpk",
-	"disk":		"iso|im(a|g|z)|dim|vhd",
-	"text":		"txt|ini|cfg",
+	"document":	"rtf|e?pub|pdf|doc.?|pptx?|xlsx?|od(s|t|p)|eot|dcm|html?",
+	"archive":	"t?.?z.{0,2}|br|rpm|cab|deb|.?ar|pak|n(es|64|ds|ro)|wad|pkg|vpk",
+	"disk":		"iso|im(a|g|z)|dim|vhd|gpt|mbr|cue",
+	"text":		"txt|ini|cfg|md",
 	"script":	"(b|j)son|(ya?|to|x)ml|py|c(pp|s.?)|js|net|php(0-9)?|ahk|vmt",
-	"comp":		"exe|msi|bat|sh|com|run",
+	"program":	"exe|msi|bat|sh|com|run",
 	"binary":	"bin|dat"
 }
 
@@ -154,17 +154,17 @@ def get_filelist(path):
 					"size": stats.st_size,
 					"date": datetime.datetime.fromtimestamp(stats.st_mtime).strftime("%D %I:%M %p") if stats.st_mtime else "--",
 				}
-				if files[file]["type"] in ("important"): # top-sort important files
+				if files[file]["type"] == "important": # top-sort important files
 					up_files[file] = files.pop(file)
 		except Exception as e:
-			print(e)
+			print(f"couldnt process file {file}: {e}")
 	files = {k: files[k] for k in sorted(files.keys(), key=str.casefold)}
 	folders = {k: folders[k] for k in sorted(folders.keys(), key=str.casefold)}
 	return {**parent, **folders, **up_files, **low_files, **files}
 
 def get_userdata(user):
 	query = cur.execute(f"SELECT name FROM users WHERE name='{user}'").fetchone()
-	if not query:
+	if not query or not os.path.isdir(f"{uploads}/{user}"):
 		return None
 	userdir = f"{uploads}/{user}"
 	return {
@@ -173,14 +173,6 @@ def get_userdata(user):
 		"storage": 2147483648, # 2gb (ignored for admins)
 		"is_admin": True if user in user_admins else False,
 	}
-
-def verify_key(key):
-	keylist = [k for kk in cur.execute("SELECT * FROM keys").fetchall() for k in kk]
-	if key in keylist:
-		cur.execute(f"DELETE FROM keys WHERE key='{key}'")
-		db.commit()
-		return True
-	return False
 
 def generate_key():
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
@@ -258,7 +250,7 @@ async def _files(user, folder):
 				else:
 					os.remove(f"{fulldir}/{file}")
 				del filelist[file]
-			await flash(f"deleted {len(selections)} file{'s' if len(selections) > 1 else ''} ({', '.join(selections)})")
+			await flash(f"deleted {len(selections)} file(s) ({', '.join(selections)})")
 		
 		elif selections and "MOVE" in form:
 			folder = form.get("moveto")
@@ -275,7 +267,7 @@ async def _files(user, folder):
 					continue
 				shutil.move(f"{fulldir}/{file}", f"{movedir}/{file}")
 				movelist.append(file)
-			await flash(f"moved {len(movelist)} file{'s' if len(movelist) > 1 else ''} to {folder} ({', '.join(movelist)})")
+			await flash(f"moved {len(movelist)} file(s) to {folder} ({', '.join(movelist)})")
 		else:
 			await flash("no changes made...")
 
@@ -290,8 +282,8 @@ async def _login():
 		return redirect(f"/u/{current_user.auth_id}")
 	if request.method == "POST":
 		form = (await request.form)
-		username = form["username"]
-		password = form["password"]
+		username = form.get("username")
+		password = form.get("password")
 		remember = True if form.get("rememberme") else False
 		user_password = cur.execute(f"SELECT pass FROM users WHERE name='{username}'").fetchone()
 		if user_password and password == user_password[0]:
@@ -302,29 +294,32 @@ async def _login():
 			await flash("invalid login!")
 	return await render_template("login.html")
 
+
 @app.route("/register", methods=["GET", "POST"])
 async def _register():
 	if request.method == "POST":
 		form = (await request.form)
-		username = form["username"]
-		password = form["password"]
-		passkey = form["key"]
+		username = form.get("username")
+		password = form.get("password")
+		regkey = form.get("key")
 		newuserdir = f"{uploads}/{username}"
-		if not verify_key(passkey):
+		if regkey not in [k for kk in cur.execute("SELECT * FROM keys").fetchall() for k in kk]:
 			await flash("invalid registration key! ask eli if you need one...")
-		elif os.path.isdir(newuserdir) or get_userdata(username):
-			await flash(f"{username} already exists!")
-		elif username.lower() in user_blacklist or not (3 < len(username) < 16) or not re.match(abc123_regex, username):
-			await flash(f"{username} is not allowed! username must be between 2 and 16 characters, letters and numbers")
+		elif get_userdata(username):
+			await flash("username is already taken!")
+		elif not username or not (3 <= len(username) <= 16) or not re.match(abc123_regex, username):
+			await flash("disallowed username provided! must be between 2 and 16 characters and letters/numbers ONLY!")
 		else:
 			cur.execute(f"INSERT INTO users (name, pass) VALUES ('{username}', '{password}')")
+			cur.execute(f"DELETE FROM keys WHERE key='{regkey}'")
 			db.commit()
-			await log(request, f"{username} created using key {passkey}")
+			await log(request, f"{username} created using key {regkey}")
 			os.makedirs(newuserdir)
 			login_user(AuthUser(username))
 			await flash("account successfully created!")
 			return redirect(url_for("_files", user=current_user.auth_id))
 	return await render_template("register.html")
+
 
 @app.route("/logout")
 @login_required
@@ -340,7 +335,7 @@ async def _upload():
 	user = current_user.auth_id
 	folder = request.args.get('folder')
 	fulldir = f"{uploads}/{user}" + (f"/{folder}" if folder else "")
-	filelist = os.listdir(fulldir) # note absence of get_filelist
+	filelist = os.listdir(fulldir) # note absence of get_filelist()
 	userdata = get_userdata(user)
 
 	api = True if "json" in request.args else False # returns json (mainly for sharex)
@@ -409,36 +404,36 @@ async def _account():
 
 	if request.method == "POST":
 		form = (await request.form)
+		user_password = cur.execute(f"SELECT pass FROM users WHERE name='{current_user.auth_id}'").fetchone()[0]
 
-		#TODO: setup settings later
-		if "SETTINGS" in form:
-			toggles = form.getlist("toggles")
-			print(toggles)
-			await flash("this doesnt do anything just yet.. try again later!")
-
-		elif "CHANGELOGIN" in form:
-			user_password = cur.execute(f"SELECT pass FROM users WHERE name='{current_user.auth_id}'").fetchone()
-			new_username = form["newusername"] if "newusername" in form else ''
-			new_password = form["newpassword"] if "newpassword" in form else ''
-			if "password" not in form or form["password"] != user_password[0]:
+		if "CHANGELOGIN" in form:
+			login_changed = False
+			new_username = form.get("newusername", None)
+			new_password = form.get("newpassword", None)
+			if "password" not in form or form["password"] != user_password:
 				await flash("incorrect password provided!")
 				return redirect(request.url)
-			elif new_password or new_username:
-				if new_password:
-					cur.execute(f"UPDATE users SET pass='{new_password}' WHERE name='{current_user.auth_id}'")
-					await flash("your password has been updated!")
-				if new_username and new_username != current_user.auth_id:
-					if new_username.lower() not in user_blacklist and (3 < len(new_username) < 16) and re.match(abc123_regex, new_username):
-						cur.execute(f"UPDATE users SET name='{new_username}' WHERE name='{current_user.auth_id}'")
-						shutil.move(userpath, f"{uploads}/{new_username}")
-						await flash("your username has been updated!")
+			if new_username:
+				if get_userdata(new_username) or not (3 < len(new_username) < 16) or not re.match(abc123_regex, new_username):
+					await flash("username is disallowed or already in use! must be between 2 and 16 characters and letters/numbers ONLY!")
+					return redirect(request.url)
+				cur.execute(f"UPDATE users SET name='{new_username}' WHERE name='{current_user.auth_id}'")
+				shutil.move(userpath, f"{uploads}/{new_username}")
+				await flash("your username has been updated!")
+				await log(request, f"login changed! {current_user.auth_id} -> {new_username}")
+				login_changed = True
+			if new_password:
+				cur.execute(f"UPDATE users SET pass='{new_password}' WHERE name='{current_user.auth_id}'")
+				await flash("your password has been updated!")
+				login_changed = True
+			if login_changed:
 				db.commit()
 				logout_user()
 				await flash("you have been logged out! please enter your new credentials...")
 				return redirect("/login")
 
-		elif "DELETEME" in form and form["please"] == "delete my account pretty please":
-			if "password" not in form or form["password"] != user_password[0]:
+		elif "DELETEME" in form and form.get("please", "") == "delete my account pretty please":
+			if "password" not in form or form["password"] != user_password:
 				await flash("incorrect password provided!")
 				return redirect(request.url)
 			shutil.rmtree(userpath)
@@ -486,6 +481,8 @@ async def _admin():
 @app.route("/f/<user>/<path:filepath>")
 async def _serve_files(user, filepath):
 	fullpath = f"{uploads}/{user}/{filepath}"
+	if not os.path.exists(fullpath):
+		return abort(404)
 	if os.path.isdir(fullpath):
 		#TODO: support downloading entire directories
 		return abort(404)
@@ -509,7 +506,7 @@ async def error_handler(error):
 	response = quart.Response(await render_template("error.html", errors={
 		400: ["bad request received!", "the server could not understand the given request... either you did something wrong or you should try again later!"],
 		401: ["you are not logged in!", "you must be logged in to perform this action!"],
-		403: ["access blocked!", "you are not allowed to view this page!"],
+		403: ["access blocked!", "you are not authorized to view this page!"],
 		404: ["page not found", "the page you requested could not be found! if you believe this is in error, please get in contact"],
 		413: ["content too large!", "the content provided is too large for the server to handle! the max size per upload is 64 MB..."],
 		500: ["an internal error occured!", "your request could not be processed. please get in contact if this persists!",],

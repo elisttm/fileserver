@@ -1,12 +1,22 @@
-last updated january 11, 2025
+last updated january 22, 2025
 
 welcome to my fileserver!
-this is a simple place to upload and host static files for whatever purposes you need
+this is a simple place to upload and host static files for whatever purposes you may need
 
 if you need a registration key or experience any issues or unintended behaviors, do not hesitate to get in contact!
 my contact information can be found on https://elisttm.space/
 
 if you wish to support me, i take kofi at https://ko-fi.com/elisttm
+
+
+---------- REGISTRATION ----------
+
+registering a user account is simple as long as you have a registration key.
+if you do not have a registration key, contact me via my above contact information and ill give you one!
+
+you can use any username as long as it is made up of only letters or numbers and is between 3 and 16 characters.
+passwords are currently NOT encrypted, and though i trust that they are secure as-is, please do not use a password you use literally everywhere else
+
 
 ---------- USER INFORMATION ----------
 
@@ -26,6 +36,7 @@ filenames have a max length of 32 characters and can only contain letters, numbe
 it is recommended that you NEVER upload anything personally sensitive or illegal
 nsfw and piracy are fine, but please dont add anything that will get me in trouble
 
+
 ---------- SPECIAL FILES ----------
 
 you can create special "linkto" files that can link to external urls or to other files/folders on this server
@@ -35,6 +46,7 @@ this identifier doesnt do anything functionally, it just differentiates it from 
 
 now, edit the file and add your link to line 1. you can also add a vanity label on line 2.
 the link on the first line can be any url OR a file/folder path formatted like so: "/eli/example.png"
+
 
 ---------- SHAREX UPLOADING ----------
 
@@ -51,7 +63,9 @@ be warned that this will stop working if you ever log out in your browser
 
 you can also change the subdirectory that sharex uploads to by adding a folder to the "folder" url parameter
 
+
 ---------- CHANGELOG ----------
+
 
     1/11/24
 cleaned up files and code, finished writing public README.txt (this file!)
