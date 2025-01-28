@@ -29,15 +29,15 @@ abc123_regex = re.compile("([A-Za-z1-9])")
 url_regex = re.compile("^(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")
 
 ext_regex = {
-	"image":	"a?png|j(pe?(x|g)?|xl|fif)|gif|webp|bmp|tiff?|avif",
+	"image":	"a?png|j(pe?g|fif|x(l|r))|gif|webp|bmp|tiff?|avif",
 	"image1":	"svg|ico|cur|psd?|pdn|swf|art|dxf|dng|vtf",
 	"sound":	"aac|mp3|m.?a|ogg|flac|wav|amr|aiff|mid",
 	"video":	"mp4|webm|m.?v|mov|avi|wmv|mpg|flv|3gp",
 	"document":	"rtf|e?pub|pdf|doc.?|pptx?|xlsx?|od(s|t|p)|eot|dcm|html?",
-	"archive":	"t?.?z.{0,2}|br|rpm|cab|deb|.?ar|pak|n(es|64|ds|ro)|wad|pkg|vpk",
+	"archive":	"t?.?z.{0,2}|.?ar|br|rpm|cab|deb|pak|n(es|64|ds|ro)|wad|pkg|vpk|vmf",
 	"disk":		"iso|im(a|g|z)|dim|vhd|gpt|mbr|cue",
 	"text":		"txt|ini|cfg|md",
-	"script":	"(b|j)son|(ya?|to|x)ml|py|c(pp|s.?)|js|net|php(0-9)?|ahk|vmt",
+	"script":	"(b|j)son|(ya?|to|x)ml|py|c(c|pp|ss?)?|js|net|php|ahk|vmt",
 	"program":	"exe|msi|bat|sh|com|run",
 	"binary":	"bin|dat"
 }
@@ -162,6 +162,7 @@ def get_filelist(path):
 	folders = {k: folders[k] for k in sorted(folders.keys(), key=str.casefold)}
 	return {**parent, **folders, **up_files, **low_files, **files}
 
+
 def get_userdata(user):
 	query = cur.execute(f"SELECT name FROM users WHERE name='{user}'").fetchone()
 	if not query or not os.path.isdir(f"{uploads}/{user}"):
@@ -173,6 +174,12 @@ def get_userdata(user):
 		"storage": 2147483648, # 2gb (ignored for admins)
 		"is_admin": True if user in user_admins else False,
 	}
+
+def user_exists(user): # maybe use users in db in the future
+	casefold_users = [u.casefold() for u in os.listdir(uploads)]
+	if user.casefold() in casefold_users:
+		return True
+	return False
 
 def generate_key():
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
@@ -217,6 +224,7 @@ async def _files(user, folder):
 		selections = form.getlist("select")
 
 		if "RENAME" in form:
+			casefold_files = [f.casefold() for f in filelist.keys()]
 			for file in filelist:
 				if filelist[file]["type"] == "back":
 					continue
@@ -224,7 +232,7 @@ async def _files(user, folder):
 				if not form[formid] or form[formid] == "" or form[formid] == file:
 					continue
 				rename = sanitize_filename(form[formid])
-				if rename in filelist:
+				if rename.casefold() in casefold_files:
 					await flash(f"{rename} already exists!")
 					continue
 				os.rename(f"{fulldir}/{file}", f"{fulldir}/{rename}")
@@ -250,6 +258,7 @@ async def _files(user, folder):
 				else:
 					os.remove(f"{fulldir}/{file}")
 				del filelist[file]
+			await log(request, f"{current_user.auth_id} deleted {len(selections)} file(s) ({', '.join(selections)})")
 			await flash(f"deleted {len(selections)} file(s) ({', '.join(selections)})")
 		
 		elif selections and "MOVE" in form:
@@ -259,10 +268,11 @@ async def _files(user, folder):
 			movelist = []
 			movedir = ff.parent_path(fulldir) if folder == ".." else f"{fulldir}/{folder}"
 			folder_filelist = get_filelist(movedir)
+			casefold_files = [f.casefold() for f in folder_filelist.keys()]
 			for file in selections:
 				if not file or file not in filelist or filelist[file]["type"] == "back":
 					continue
-				if file in folder_filelist:
+				if file.casefold() in casefold_files:
 					await flash(f"{file} already exists in {folder}!")
 					continue
 				shutil.move(f"{fulldir}/{file}", f"{movedir}/{file}")
@@ -305,7 +315,7 @@ async def _register():
 		newuserdir = f"{uploads}/{username}"
 		if regkey not in [k for kk in cur.execute("SELECT * FROM keys").fetchall() for k in kk]:
 			await flash("invalid registration key! ask eli if you need one...")
-		elif get_userdata(username):
+		elif user_exists(username):
 			await flash("username is already taken!")
 		elif not username or not (3 <= len(username) <= 16) or not re.match(abc123_regex, username):
 			await flash("disallowed username provided! must be between 2 and 16 characters and letters/numbers ONLY!")
@@ -335,13 +345,13 @@ async def _upload():
 	user = current_user.auth_id
 	folder = request.args.get('folder')
 	fulldir = f"{uploads}/{user}" + (f"/{folder}" if folder else "")
-	filelist = os.listdir(fulldir) # note absence of get_filelist()
+	filelist = os.listdir(fulldir) # not using get_filelist(), pointless for this
 	userdata = get_userdata(user)
 
 	api = True if "json" in request.args else False # returns json (mainly for sharex)
 
 	if request.method == "POST":
-
+		
 		if not os.path.exists(fulldir):
 			if api:
 				return jsonify({"success": False, "result": "the specified folder does not exist!"}), 404
@@ -372,12 +382,13 @@ async def _upload():
 			return abort(400)
 
 		files = req_files.getlist("upload")
+		casefold_files = [f.casefold() for f in filelist]
 		upload_list = []
 		for file in files:
 			if file.filename == "":
 				continue
 			filename = sanitize_filename(file.filename)
-			if filename in filelist:
+			if filename.casefold() in casefold_files:
 				file.close()
 				if api:
 					return jsonify({"success": False, "result": f"{filename} already exists"}), 400
@@ -387,7 +398,8 @@ async def _upload():
 			await file.save(f"{fulldir}/{filename}")
 			await flash(f"sucessfully uploaded {filename}!")
 			if api:
-				return jsonify({"success": True, "result": f"{filename} successfully", "location": f"{request.url_root}/f/{user}{f'/{folder}' if folder else ''}/{filename}"}), 201
+				await log(request, f"{user} uploaded a file via api {' '.join(upload_list)}")
+				return jsonify({"success": True, "result": f"{filename} successfully uploaded", "location": f"{request.url_root.replace("http://","https://")}/f/{user}{f'/{folder}' if folder else ''}/{filename}"}), 201
 
 		await log(request, f"{user} uploaded {len(upload_list)} file(s): {' '.join(upload_list)}")
 		return redirect(url_for("_files", user=user, folder=folder))
@@ -414,7 +426,7 @@ async def _account():
 				await flash("incorrect password provided!")
 				return redirect(request.url)
 			if new_username:
-				if get_userdata(new_username) or not (3 < len(new_username) < 16) or not re.match(abc123_regex, new_username):
+				if user_exists(new_username) or not (3 < len(new_username) < 16) or not re.match(abc123_regex, new_username):
 					await flash("username is disallowed or already in use! must be between 2 and 16 characters and letters/numbers ONLY!")
 					return redirect(request.url)
 				cur.execute(f"UPDATE users SET name='{new_username}' WHERE name='{current_user.auth_id}'")
@@ -504,12 +516,12 @@ async def static_from_root():
 @app.errorhandler(500)
 async def error_handler(error):
 	response = quart.Response(await render_template("error.html", errors={
-		400: ["bad request received!", "the server could not understand the given request... either you did something wrong or you should try again later!"],
-		401: ["you are not logged in!", "you must be logged in to perform this action!"],
-		403: ["access blocked!", "you are not authorized to view this page!"],
-		404: ["page not found", "the page you requested could not be found! if you believe this is in error, please get in contact"],
-		413: ["content too large!", "the content provided is too large for the server to handle! the max size per upload is 64 MB..."],
-		500: ["an internal error occured!", "your request could not be processed. please get in contact if this persists!",],
+		400: ["bad request received!",	 "the server could not understand the given request... either you did something wrong or you should try again later!"],
+		401: ["login required!",	     "please log in to perform this action!"],
+		403: ["access blocked!",		 "you are not authorized to view this page!"],
+		404: ["page not found",			 "the page you requested could not be found! if you believe this is in error, please get in contact"],
+		413: ["content too large!",		 "the content provided is too large for the server to handle! the max size per upload is 64 MB..."],
+		500: ["an error occured!",		 "an error occurred on the servers end! try again, and please get in contact if this persists!",],
 	}, error=error,), error.code)
 	return response
 

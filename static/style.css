@@ -13,6 +13,7 @@ img {max-height: 100vh; max-width: 100vw; vertical-align: middle;}
 input, select, textarea, button {color: #000; vertical-align: middle; resize: none;}
 input[type=file] {color: #fff; background-color: #000; outline: 1px solid #fff;}
 input[type=submit] {margin: 8px 0px}
+table input[type=text]:user-valid {border: 2px solid #f00;}
 option {color: #000;}
 
 table {width: 100%; border-collapse: collapse; vertical-align: middle; text-align: left;}
@@ -20,8 +21,7 @@ th {font-size: 1.25em; padding: 4px; text-align: left;}
 tr {line-height: 22px}
 td {padding: 4px; white-space: nowrap;}
 .icon {width: 20px;}
-.views {text-align: center;}
-.date {text-align: center;}
+.views, .date {text-align: center;}
 .size {text-align: right; width: 80px}
 .preview {display: none; position: absolute; margin: 8px 0; outline: 1px solid #fff; background: #000 url('/static/img/checker.png')}
 td>a:hover + .preview {display: block;}
