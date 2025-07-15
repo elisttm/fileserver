@@ -1,7 +1,7 @@
-last updated january 22, 2025
+last updated JULY 15, 2025
 
 welcome to my fileserver!
-this is a simple place to upload and host static files for whatever purposes you may need
+this is a simple platform to upload and host static files for whatever purposes you may need
 
 if you need a registration key or experience any issues or unintended behaviors, do not hesitate to get in contact!
 my contact information can be found on https://elisttm.space/
@@ -9,16 +9,17 @@ my contact information can be found on https://elisttm.space/
 if you wish to support me, i take kofi at https://ko-fi.com/elisttm
 
 
----------- REGISTRATION ----------
+---------  REGISTRATION  ---------
 
 registering a user account is simple as long as you have a registration key.
+
 if you do not have a registration key, contact me via my above contact information and ill give you one!
-
 you can use any username as long as it is made up of only letters or numbers and is between 3 and 16 characters.
-passwords are currently NOT encrypted, and though i trust that they are secure as-is, please do not use a password you use literally everywhere else
+
+if you ever forget your password, you can click "forgot password" on the login screen and follow the provided steps
 
 
----------- USER INFORMATION ----------
+---------  USER GUIDE  ---------
 
 as a user, you have near full control over your personal directory
 
@@ -30,14 +31,14 @@ in file management mode you can...
     - move selected files in/out of a folder
 
 you can also upload things straight from your personal directory, including multiple files at once
-uploads have a maximum size limit of 64mb at a time. this includes the sum of every selected file
+uploads have a maximum size limit of 100mb at a time. this includes the sum of every selected file
 filenames have a max length of 32 characters and can only contain letters, numbers, and some symbols
 
 it is recommended that you NEVER upload anything personally sensitive or illegal
 nsfw and piracy are fine, but please dont add anything that will get me in trouble
 
 
----------- SPECIAL FILES ----------
+---------  SPECIAL FILES  ---------
 
 you can create special "linkto" files that can link to external urls or to other files/folders on this server
 
@@ -47,8 +48,10 @@ this identifier doesnt do anything functionally, it just differentiates it from 
 now, edit the file and add your link to line 1. you can also add a vanity label on line 2.
 the link on the first line can be any url OR a file/folder path formatted like so: "/eli/example.png"
 
+for now this process must be done locally, but an on-site editor will be added in the future!
 
----------- SHAREX UPLOADING ----------
+
+---------  SHAREX UPLOADING  ---------
 
 if you use sharex, you can add this website as a custom upload destination!
 be warned that this will stop working if you ever log out in your browser
@@ -64,10 +67,17 @@ be warned that this will stop working if you ever log out in your browser
 you can also change the subdirectory that sharex uploads to by adding a folder to the "folder" url parameter
 
 
----------- CHANGELOG ----------
+---------  CHANGELOG  ---------
 
 
-    1/11/24
+    3/27/25
+added password reset
+added download icon next to downloadable files
+
+    3/12/25
+passwords are now properly encrypted and hashed instead of being plaintext :P
+
+    1/11/25
 cleaned up files and code, finished writing public README.txt (this file!)
 added vanity name support to "linkto" files
 
@@ -89,5 +99,5 @@ removed upload button on header in favor of the button in user folders
 changed urls: files are now served under /f/ and directories are now under /u/
 
     12/9/24
-added folders
+added folder support
 added file management mode

@@ -11,7 +11,8 @@ this is currently being hosted at [f.elisttm.space](https://f.elisttm.space)
 - single-use registration keys
 - rudimentary file management
 - customizable local file links
-- simple admin panel with logs
+- thorough admin panel
+- password resetting
 - sharex support
 
 ## todo

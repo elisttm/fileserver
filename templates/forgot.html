@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>forgot your password?</h1>
+    <p>enter your username below to send a password reset request</p>
+
+    <form method="POST">
+        <label for="username">username:</label>
+        <input type="text" name="username" maxlength="16" required><br><br>
+        
+        <br><input type="submit" value="submit request" name="REQUEST">
+    </form>
+
+    <br><hr>
+
+    <h1>already requested?</h1>
+    <p>get in contact with me (@elisttm on discord) to recieve your password reset code and enter it below!</p>
+
+    <form method="POST">
+
+        <label for="username">username:</label>
+        <input type="text" name="username" maxlength="16" required><br><br>
+
+        <label for="password">new password:</label>
+        <input type="password" name="password" maxlength="100" required><br><br><br>
+            
+        <br>
+        <label for="key">reset key:</label>
+        <input type="text" name="key" required><br><br>
+
+        <br><input type="submit" value="reset password" name="RESET">
+        
+    </form>
+{% endblock %}

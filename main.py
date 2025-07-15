@@ -1,4 +1,4 @@
-import quart, hypercorn, asyncio, os, re, shutil, dotenv, sqlite3, time, datetime, random, string
+import quart, hypercorn, asyncio, os, re, shutil, dotenv, sqlite3, time, datetime, random, string, bcrypt
 from quart import request, redirect, render_template, send_from_directory, url_for, abort, flash, jsonify
 from quart_auth import AuthUser, current_user, login_required, login_user, logout_user, QuartAuth
 from werkzeug.utils import secure_filename
@@ -10,8 +10,8 @@ uploads = appdir+"/uploads"
 
 db = sqlite3.connect(f"{appdir}/data.db")
 cur = db.cursor()
-cur.execute("CREATE TABLE IF NOT EXISTS users (name VARCHAR(16) NOT NULL UNIQUE, pass VARCHAR(255) NOT NULL)")
-cur.execute("CREATE TABLE IF NOT EXISTS keys (key VARCHAR(16) NOT NULL UNIQUE)")
+cur.execute("CREATE TABLE IF NOT EXISTS users (name TEXT NOT NULL UNIQUE, pass TEXT NOT NULL)")
+cur.execute("CREATE TABLE IF NOT EXISTS keys (key TEXT NOT NULL UNIQUE)")
 
 app = quart.Quart(__name__)
 app.config["UPLOAD_FOLDER"] = uploads
@@ -24,6 +24,7 @@ app.secret_key = os.environ["secret"]
 QuartAuth(app)
 
 user_admins = ("eli")
+reset_codes = {}
 
 abc123_regex = re.compile("([A-Za-z1-9])")
 url_regex = re.compile("^(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")
@@ -49,7 +50,7 @@ class ff: # portable functions
 
 	def file_type(file):
 		file = file.lower()
-		if file in ("readme.txt"):
+		if "readme" in file:
 			return "important"
 		for ext in ext_regex:
 			if re.search(ext_regex[ext], file):
@@ -78,6 +79,7 @@ class ff: # portable functions
 		return "/".join(path.split("/")[:-1])
 
 def sanitize_filename(filename):
+	# truncates and sanitizes filenames while preserving extensions
 	ext = os.path.splitext(filename)[1]
 	length = 50-len(ext)
 	filename = (filename[::-1].replace(ext[::-1],""[::-1], 1))[::-1]
@@ -93,36 +95,36 @@ def increment_filename(filename, targetpath):
 	return newfilename
 
 def get_filelist(path):
-	# this function is kind of all over the place but it functions well enough
+	# huge hideous nasty function
 	if not os.path.exists(path):
 		return {}
-	files = {}
-	folders = {}
-	up_files = {}
-	low_files = {}
+	files, folders, up_files, low_files = {}, {}, {}, {}
 	split_path = path.split("/")
-	#user = split_path[split_path.index("uploads")+1] # i MIGHT need this in the future
 	parent = {split_path[-2]: {"type": "back",}} if split_path[-2] != "uploads" else {} # parent directory
+
 	for file in os.listdir(path):
 		filepath = f"{path}/{file}"
 		try:
 			stats = os.stat(filepath)
-			if os.path.isdir(filepath): # folders
+			if os.path.isdir(filepath):
+				# folders.. obviously
 				folders[str(file)] = {
 					"type": "folder",
 					"size": ff.dir_size(filepath),
 				}
-			elif file.startswith("LINKTO"): # special linkto files
+			elif file.startswith("LINKTO"):
 				with open(filepath, 'r') as linkfile:
 					lf = (linkfile.readlines())
 					lflink = lf[0].strip() if (len(lf) >= 1 and lf[0].strip()) else None
 					lfname = lf[1].strip()[:32] if (len(lf) >= 2 and lf[1].strip()) else lflink
 				if not lflink:
+					# invalid link syntax
 					files[str(file)] = {
 						"type": "broken",
 					}
 				elif os.path.exists(f"{uploads}{lflink}"):
 					if os.path.isdir(f"{uploads}{lflink}"):
+						# links to other folders on the site
 						low_files[str(file)] = {
 							"type": "linkfolder",
 							"size": ff.dir_size(filepath),
@@ -130,6 +132,7 @@ def get_filelist(path):
 							"name": lfname,
 						}
 					else:
+						# links to other files on the site
 						stats = os.stat(filepath)
 						low_files[str(file)] = {
 							"type": "link",
@@ -139,29 +142,35 @@ def get_filelist(path):
 							"name": lfname,
 						}
 				elif re.search(url_regex, lflink):
+					# links to external urls
 					low_files[str(file)] = {
 						"type": "website",
 						"link": lflink,
 						"name": lfname,
 				}
 				else:
+					# linked item doesnt exist
 					files[str(file)] = {
 						"type": "broken",
 					}
 			else:
+				# regular normal files
 				files[str(file)] = {
 					"type": ff.file_type(file),
 					"size": stats.st_size,
 					"date": datetime.datetime.fromtimestamp(stats.st_mtime).strftime("%D %I:%M %p") if stats.st_mtime else "--",
 				}
-				if files[file]["type"] == "important": # top-sort important files
+				# any file classified as important gets sorted to the top
+				if files[file]["type"] == "important":
 					up_files[file] = files.pop(file)
 		except Exception as e:
 			print(f"couldnt process file {file}: {e}")
+		
+	# sort files and folders case-ignorantly
 	files = {k: files[k] for k in sorted(files.keys(), key=str.casefold)}
 	folders = {k: folders[k] for k in sorted(folders.keys(), key=str.casefold)}
-	return {**parent, **folders, **up_files, **low_files, **files}
 
+	return {**parent, **folders, **up_files, **low_files, **files}
 
 def get_userdata(user):
 	query = cur.execute(f"SELECT name FROM users WHERE name='{user}'").fetchone()
@@ -170,29 +179,38 @@ def get_userdata(user):
 	userdir = f"{uploads}/{user}"
 	return {
 		"path": userdir,
-		"size": ff.dir_size(userdir),
+		"usage": ff.dir_size(userdir),
 		"storage": 2147483648, # 2gb (ignored for admins)
 		"is_admin": True if user in user_admins else False,
 	}
 
-def user_exists(user): # maybe use users in db in the future
+def user_exists(user):
 	casefold_users = [u.casefold() for u in os.listdir(uploads)]
 	if user.casefold() in casefold_users:
 		return True
 	return False
 
-def generate_key():
-    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+def generate_key(length=6):
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
+
+def hash_password(password):
+	return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+def check_password(user, input_password):
+	query_password = cur.execute(f"SELECT pass FROM users WHERE name='{user}'").fetchone()
+	if not query_password:
+		return False
+	return bool(bcrypt.checkpw(input_password.encode(), query_password[0].encode()))
 
 async def log(request, txt):
 	# for logging significant actions (mainly signups and uploads)
 	# this method of parsing ips is really idiotic but i dont care
 	if "CF-CONNECTING-IP" in request.headers:
 		ip = request.headers["CF-CONNECTING-IP"] # cloudflare proxy
-	elif "X-FORWARDED-FOR" in request.headers:
-		ip = request.headers["X-FORWARDED-FOR"] # other proxies
 	elif "HTTP_X_REAL_IP" in request.headers:
 		ip = request.headers["HTTP_X_REAL_IP"] # nginx
+	elif "X-FORWARDED-FOR" in request.headers:
+		ip = request.headers["X-FORWARDED-FOR"] # other proxies
 	else:
 		ip = request.headers["REMOTE-ADDR"] # no proxy
 	log_msg = f"[{time.strftime('%X %x %Z')}] [{ip}] {txt}"
@@ -208,7 +226,7 @@ async def log(request, txt):
 async def _files(user, folder):
 	fulldir = f"{uploads}/{user}" + (f"/{folder}" if folder else "")
 
-	# file redirect
+	# file redirect for stupid dumb idiots who fabricate their own links...
 	if not os.path.isdir(fulldir):
 		if os.path.exists(fulldir):
 			return redirect(url_for("_serve_files", user=user, filepath=folder))
@@ -289,14 +307,13 @@ async def _files(user, folder):
 @app.route("/login", methods=["GET", "POST"])
 async def _login():
 	if await current_user.is_authenticated:
-		return redirect(f"/u/{current_user.auth_id}")
+		return redirect(url_for("_files", user=current_user.auth_id))
 	if request.method == "POST":
 		form = (await request.form)
 		username = form.get("username")
 		password = form.get("password")
 		remember = True if form.get("rememberme") else False
-		user_password = cur.execute(f"SELECT pass FROM users WHERE name='{username}'").fetchone()
-		if user_password and password == user_password[0]:
+		if check_password(username, password):
 			login_user(AuthUser(username), remember)
 			await flash(f"successfully logged in as {username}!")
 			return redirect(url_for("_files", user=username))
@@ -304,6 +321,12 @@ async def _login():
 			await flash("invalid login!")
 	return await render_template("login.html")
 
+@app.route("/logout")
+@login_required
+async def _logout():
+	logout_user()
+	await flash("successfully logged out!")
+	return redirect("/")
 
 @app.route("/register", methods=["GET", "POST"])
 async def _register():
@@ -314,29 +337,47 @@ async def _register():
 		regkey = form.get("key")
 		newuserdir = f"{uploads}/{username}"
 		if regkey not in [k for kk in cur.execute("SELECT * FROM keys").fetchall() for k in kk]:
-			await flash("invalid registration key! ask eli if you need one...")
+			await flash("invalid registration key! ask eli if you need one :3")
 		elif user_exists(username):
 			await flash("username is already taken!")
 		elif not username or not (3 <= len(username) <= 16) or not re.match(abc123_regex, username):
-			await flash("disallowed username provided! must be between 2 and 16 characters and letters/numbers ONLY!")
+			await flash("invalid username provided! must be between 2 and 16 characters, letters and numbers ONLY!")
 		else:
-			cur.execute(f"INSERT INTO users (name, pass) VALUES ('{username}', '{password}')")
+			cur.execute(f"INSERT INTO users (name, pass) VALUES ('{username}', '{hash_password(password)}')")
 			cur.execute(f"DELETE FROM keys WHERE key='{regkey}'")
 			db.commit()
-			await log(request, f"{username} created using key {regkey}")
 			os.makedirs(newuserdir)
 			login_user(AuthUser(username))
+			await log(request, f"{username} created using key {regkey}")
 			await flash("account successfully created!")
 			return redirect(url_for("_files", user=current_user.auth_id))
 	return await render_template("register.html")
 
+@app.route("/forgot", methods=["GET", "POST"])
+async def _forgot():
+	if await current_user.is_authenticated:
+		return redirect(f"/u/{current_user.auth_id}")
+	if request.method == "POST":
+		global reset_codes
+		form = (await request.form)
+		username = form.get("username")
+		if "REQUEST" in form:
+			if user_exists(username):
+				reset_codes[username] = generate_key(16)
+				await log(request, f"a password reset has been requested for {username}! code: {reset_codes[username]}")
+			await flash("a request has been submitted! please get in contact for your code...")
 
-@app.route("/logout")
-@login_required
-async def _logout():
-	logout_user()
-	await flash("successfully logged out!")
-	return redirect("/")
+		elif "RESET" in form:
+			code = form.get("key")
+			new_password = form.get("password")
+			if username in reset_codes and code == reset_codes[username]:
+				cur.execute(f"UPDATE users SET pass='{hash_password(new_password)}' WHERE name='{username}'")
+				db.commit()
+				del reset_codes[username]
+				await log(request, f"password reset for {username}!")
+				await flash("sucessfully reset password! please log in now...")
+				return redirect(url_for("_login"))
+	return await render_template("forgot.html")
 
 
 @app.route("/upload", methods=["GET", "POST"])
@@ -365,19 +406,18 @@ async def _upload():
 
 		upload_size = request.content_length
 		if not userdata["is_admin"]:
-			if upload_size > 67108864:
+			if upload_size > 1024*1024*96: # 96MB
 				if api:
 					return jsonify({"success": False, "result": "request too large! 256mb max..."}), 413
 				return abort(413)
 
-			if (upload_size + userdata["size"]) >= userdata["storage"]:
+			if (upload_size + userdata["usage"]) >= userdata["storage"]:
 				if api:
 					return jsonify({"success": False, "result": "not enough storage left!"}), 413
 				await flash("you dont have enough storage to upload this! please make space before trying again...")
 				return redirect(url_for("_files", user=user, folder=folder))
 
 		req_files = (await request.files)
-
 		if "upload" not in req_files: # just in case
 			return abort(400)
 
@@ -401,7 +441,7 @@ async def _upload():
 				await log(request, f"{user} uploaded a file via api {' '.join(upload_list)}")
 				return jsonify({"success": True, "result": f"{filename} successfully uploaded", "location": f"{request.url_root.replace("http://","https://")}/f/{user}{f'/{folder}' if folder else ''}/{filename}"}), 201
 
-		await log(request, f"{user} uploaded {len(upload_list)} file(s): {' '.join(upload_list)}")
+		await log(request, f"{user} uploaded {len(upload_list)} file(s) ({' '.join(upload_list)})")
 		return redirect(url_for("_files", user=user, folder=folder))
 
 	return await render_template("upload.html")
@@ -416,13 +456,17 @@ async def _account():
 
 	if request.method == "POST":
 		form = (await request.form)
-		user_password = cur.execute(f"SELECT pass FROM users WHERE name='{current_user.auth_id}'").fetchone()[0]
+
+		password_check = False
+		if "password" in form and check_password(current_user.auth_id, form["password"]):
+			password_check = True
+		print(password_check)
 
 		if "CHANGELOGIN" in form:
 			login_changed = False
 			new_username = form.get("newusername", None)
 			new_password = form.get("newpassword", None)
-			if "password" not in form or form["password"] != user_password:
+			if not password_check:
 				await flash("incorrect password provided!")
 				return redirect(request.url)
 			if new_username:
@@ -435,7 +479,7 @@ async def _account():
 				await log(request, f"login changed! {current_user.auth_id} -> {new_username}")
 				login_changed = True
 			if new_password:
-				cur.execute(f"UPDATE users SET pass='{new_password}' WHERE name='{current_user.auth_id}'")
+				cur.execute(f"UPDATE users SET pass='{hash_password(new_password)}' WHERE name='{current_user.auth_id}'")
 				await flash("your password has been updated!")
 				login_changed = True
 			if login_changed:
@@ -445,7 +489,7 @@ async def _account():
 				return redirect("/login")
 
 		elif "DELETEME" in form and form.get("please", "") == "delete my account pretty please":
-			if "password" not in form or form["password"] != user_password:
+			if not password_check:
 				await flash("incorrect password provided!")
 				return redirect(request.url)
 			shutil.rmtree(userpath)
@@ -486,8 +530,9 @@ async def _admin():
 		return redirect(request.url)
 
 	with open(f"{appdir}/log.txt", "r") as log:
-		logs = log.readlines()
-	return await render_template("admin.html", dirlist=sorted(os.listdir(uploads)), keylist=keylist, logs=logs)
+		logs = log.readlines()[::-1]
+		
+	return await render_template("admin.html", dirlist=sorted(os.listdir(uploads)), keylist=keylist, reset_codes=reset_codes, logs=logs)
 
 
 @app.route("/f/<user>/<path:filepath>")

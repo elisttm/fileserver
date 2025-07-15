@@ -1,13 +1,12 @@
-body {background-color: #000; width: 800px; padding: 16px; margin-left: auto; margin-right: auto; text-align: center;}
+body {background-color: #000;width: 800px;/* padding: 16px; */margin-left: auto;margin-right: auto;text-align: center;}
 * {color: #fff; font-family: Monospace; box-sizing: border-box;}
 
-nav {margin-bottom: 16px; position: sticky; text-align: left;}
+nav {margin: 16px 0 12px; position: sticky; text-align: left;}
 nav > a {display: inline-block; margin-right: 16px; font-size: 1.25em}
 .flash {position: fixed; bottom: 32; right: 32px;}
 .flash, .motd {color: #000; background-color: #fff; padding: 8px}
 
-h1 {margin: 32px 0; text-align: center;}
-p {margin: 24px 0;}
+p, h1, h2, h3 {margin: 24px 0;}
 li {margin-bottom: 8px; text-align: left;}
 img {max-height: 100vh; max-width: 100vw; vertical-align: middle;}
 input, select, textarea, button {color: #000; vertical-align: middle; resize: none;}
@@ -24,8 +23,8 @@ td {padding: 4px; white-space: nowrap;}
 .views, .date {text-align: center;}
 .size {text-align: right; width: 80px}
 .preview {display: none; position: absolute; margin: 8px 0; outline: 1px solid #fff; background: #000 url('/static/img/checker.png')}
-td>a:hover + .preview {display: block;}
-td>input:hover + .preview {display: block;}
+td > a:hover + .preview {display: block;}
+td > input:hover + .preview {display: block;}
 
 .columnlist {max-width: 500px; text-align: left; margin-left: auto; margin-right: auto;}
 .columnlist > * {width: 150px; padding: 4px; display: inline-block; overflow: hidden; white-space: nowrap; text-align: center;}

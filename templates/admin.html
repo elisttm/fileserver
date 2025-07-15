@@ -13,20 +13,34 @@
         <br><input type="submit" name="DELKEY" value="delete selected key(s)">
     </form>
 
-    <br><hr><br>
+    <br><hr>
 
     <h1>list of existing directories</h1>
 
     <div class="columnlist">
-    {%- for dir in dirlist %}
+        {%- for dir in dirlist %}
         <span><a href="/u/{{dir}}">{{ dir }}</a></span>
-    {%- endfor%}
+        {%- endfor%}
     </div>
         
-    <br><br><hr><br>
+    <br><br><hr>
+
+    <h1>password reset codes</h1>
+
+    {% if reset_codes %}
+    <ul>
+        {%- for user, code in reset_codes.items() %}
+        <li>{{user}}: {{code}}</li>
+        {%- endfor%}
+    </ul>
+    {% else %}
+        <p>no codes found!</p>
+    {% endif %}
+
+    <br><br><hr>
 
     <h1>logs</h1>
-    <div style="overflow:scroll;width:100%;height:400px;text-align:left">
+    <div style="overflow:scroll; width:100%; height:500px; text-align:left; white-space: nowrap; font-size: 0.9em">
     {% for line in logs %}
         {{ line }}<br>
     {% endfor %}

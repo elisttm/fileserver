@@ -33,7 +33,9 @@
                 {%- elif filelist[file]["type"] == "linkfolder" %}
                 -> <a href="/u/{{filelist[file]["link"]}}">{{filelist[file]["name"]}}</a>
                 {%- else %}
-                <a href="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}">{{file}}</a>{%endif%}
+                <a href="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}" download><img src="/static/img/download.gif" height="9" width="9"></a>
+                <a href="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}">{{file}}</a>
+                {%- endif%}
                 {%- if filelist[file]["type"] == "image" %}
                 <div class="preview"><img loading="lazy" src="/f/{{user}}/{%if folder%}{{folder}}/{%endif%}{{file}}" height="150"/></div>{% endif %}
                 {%- endif %}
@@ -50,7 +52,7 @@
             <a href="/u/{{user}}{%if folder%}/{{folder}}{%endif%}">stop managing files</a> |
         {%- elif user == current_user.auth_id  %}<a href="?manage">manage files</a> | {% endif %}
             showing {{filelist|length}} file{% if filelist|length > 1 %}s{% endif %}
-            {% if userdata %} | {{ff.byte_size(userdata["size"])}} / {{ff.byte_size(userdata["storage"])}}{% endif %}
+            {% if userdata %} | {{ff.byte_size(userdata["usage"])}} / {{ff.byte_size(userdata["storage"])}}{% endif %}
     </p>
 
     {%- if manage %}
@@ -79,7 +81,7 @@
                 <br>ALL files are publically accessible to anyone with the URL
                 <br><br>
                 filenames: 32 characters max, letters and numbers only
-                <br>64mb max per upload (includes sum of selected files)
+                <br>100mb max per upload (includes sum of selected files)
             </p>
             <input type="submit" value="submit file(s)">
         </form>

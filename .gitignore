@@ -9,6 +9,8 @@
 log.txt
 uploads/*
 
+test.py
+
 # include specific public files
 uploads/public/*
 !uploads/public/
